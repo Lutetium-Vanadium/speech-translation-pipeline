@@ -1,6 +1,8 @@
 from asr import Runner, logger, TranscriptHandler, create_args
 from asr import create_tokenizer, VACOnlineASRProcessor, OnlineASRProcessor
 from uart import Screen
+from audio import AudioCapture, output_audio
+import os
 
 from mt import Nllb200
 from tts import Tts
@@ -14,11 +16,13 @@ class CascadePipeline(TranscriptHandler):
 
     Default is 2
     """
-    def __init__(self, languages: list[str], translation_setting = 2, device='cuda'):
+    def __init__(self, languages: list[str], translation_setting = 2, device='cuda', enable_tts=False):
         super().__init__()
         self.languages = languages
         self.mt_model = Nllb200(device=device)
-        self.tts_model = Tts(device=device)
+        self.tts_model = None
+        if enable_tts:
+            self.tts_model = Tts(device=device)
         self.translation_setting = translation_setting
 
         self.tokenizer = None
@@ -52,8 +56,9 @@ class CascadePipeline(TranscriptHandler):
         super().init(asr)
         self.mt_model.load_model()
 
-        for l in self.languages:
-            self.tts_model.load_lang(l)
+        if self.tts_model is not None:
+            for l in self.languages:
+                self.tts_model.load_lang(l)
 
         self.reset()
 
@@ -82,14 +87,14 @@ class CascadePipeline(TranscriptHandler):
         if src != self.last_transcribed_lang and self.last_transcribed_lang is not None:
             # Language has changed, translate whatever was confirmed transcribed but not confirmed
             # translated
-            cfm_translated = self.mt_model.translate(self.last_transcribed_sentence,source=src, target=tgt)
+            cfm_translated = self.mt_model.translate(self.last_transcribed_sentence,source=tgt, target=src)
             self.confirmed_translation += cfm_translated
             self.screen.send_text(cfm_translated, tgt_speakerid, is_translation=True, is_confirmed=True)
             # Reset the translation context
             self.last_transcribed_sentence = ''
             logger.debug(' CFM: ' + self.confirmed_translation)
 
-            self.transcription_history.append((self.confirmed_translation, src))
+            self.translation_history.append((self.confirmed_translation, src))
             self.confirmed_translation = ''
 
         if self.tokenizer is None:
@@ -116,7 +121,7 @@ class CascadePipeline(TranscriptHandler):
         for i, s in enumerate(sentences):
             old_l = l
             l += len(s)
-            if l <= confirmed_len and i+1 < len(sentences):
+            if l <= confirmed_len:
                 cfm_to_translate += s
             else:
                 if last_was_confirmed:
@@ -161,44 +166,58 @@ class CascadePipeline(TranscriptHandler):
         logger.debug('=====================')
 
     def handle_silence(self):
+        if self.tts_model is None:
+            return
         if self.last_transcribed_lang is None:
+            return
+        if len(self.confirmed_translation) == 0:
             return
 
         lang_idx = self.languages.index(self.last_transcribed_lang)
         tgt = self.languages[1-lang_idx]
 
-        self.tts_model.synthesize(self.confirmed_translation + self.unconfirmed_translation, tgt)
-        self.finish()
+        waveform = self.tts_model.synthesize(self.confirmed_translation, tgt)
+        output_audio(waveform)
 
     def finish(self):
         if self.last_transcribed_lang is None:
             return
 
+        src_speakerid = self.languages.index(self.last_transcribed_lang)
+        tgt_speakerid = 1 - src_speakerid
+        tgt = self.languages[tgt_speakerid]
+
         self.transcription_history.append([
             self.confirmed_transcription + self.unconfirmed_transcription, self.last_transcribed_lang
         ])
+        if len(self.unconfirmed_transcription) > 0:
+            self.screen.send_text(self.unconfirmed_transcription, src_speakerid, is_translation=False, is_confirmed=True)
 
-        lang_idx = self.languages.index(self.last_transcribed_lang)
-        tgt = self.languages[1-lang_idx]
 
         self.translation_history.append([
             self.confirmed_translation + self.unconfirmed_translation, tgt
         ])
+        if len(self.unconfirmed_translation) > 0:
+            self.screen.send_text(self.unconfirmed_translation, tgt_speakerid, is_translation=True, is_confirmed=True)
 
 if __name__ == '__main__':
-    from mic import AudioCapture
-    pipeline = CascadePipeline(languages=['en', 'hi'])
+    pipeline = CascadePipeline(languages=['en', 'zh'], enable_tts=True)
 
-    runner = Runner(pipeline, silence_time=1)
-    runner.init(create_args().parse_args())
-    audio_device = AudioCapture(output_audio=lambda a: runner.online.insert_audio_chunk(a))
+    runner = Runner(pipeline, silence_time=4)
+    args = create_args().parse_args()
+    runner.init(args)
+    if os.path.isfile(args.file or ''):
+        runner.run()
+    else:
+        audio_device = AudioCapture(output_audio=lambda a: runner.online.insert_audio_chunk(a))
 
-    try:
-        audio_device.start()
-        while True:
-            runner.process_iter()
-    except KeyboardInterrupt:
-        audio_device.stop()
+        try:
+            audio_device.start()
+            print('listening...')
+            while True:
+                runner.process_iter()
+        except KeyboardInterrupt:
+            audio_device.stop()
 
     pipeline.finish()
 

@@ -13,7 +13,14 @@ VOLUME /model-cache
 ENV TRANSFORMERS_CACHE="/model-cache/models"
 ENV HF_HOME="/model-cache/hf"
 
-RUN pip3 install --no-cache-dir evaluate jiwer sacrebleu librosa soundfile uroman more_itertools
+RUN apt-get update && \
+    apt install -y libasound2-dev alsa-utils && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
+
+
+RUN pip3 install --no-cache-dir evaluate jiwer sacrebleu librosa soundfile uroman \
+            more_itertools pypinyin pyalsaaudio pyserial
 
 # wtpsplit depends on onnxruntime, but pip cannot detect that it is satisfied by onnxruntime-gpu
 # which is installed. So install all the other required dependencies manually

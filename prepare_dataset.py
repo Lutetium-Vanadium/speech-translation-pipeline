@@ -24,8 +24,8 @@ def concatenate_audio_files(file_paths, output_path):
     file_paths (list): List of audio file paths to concatenate
     output_path (str): Path for output WAV file
     """
-    # half a second of silence
-    silence = np.zeros(8000, dtype=np.float32)
+    # 2 seconds of silence
+    silence = np.zeros(32000, dtype=np.float32)
 
     audio_data = []
     # Read all audio files
@@ -114,6 +114,7 @@ def create_conversation_dataset(lang):
     """
 
     fleurs_lang = load_fleurs_with_path(lang)
+    num_eg = 50
 
     fleurs_ids = set(fleurs_lang['id'])
     lang_df = flores_df[flores_df['fleurs_id'].isin(fleurs_ids)]
@@ -123,6 +124,8 @@ def create_conversation_dataset(lang):
 
     audio_base = path.join(STORAGE_DIR_CONVERSATION_DATA,'audio',lang)
 
+    makedirs(path.join(audio_base, lang), exist_ok=True)
+
     fleurs_lang = deduplicate_by_id(fleurs_lang.to_pandas())
 
     new_rows = []
@@ -130,10 +133,17 @@ def create_conversation_dataset(lang):
     langs = ['en', lang]
     dfs = [fleurs_df, fleurs_lang]
 
+    keep = set(np.random.choice(len(lang_df)*2, num_eg, replace=False))
+
+
+    row_id = -1
+
     for row in tqdm(lang_df.itertuples(), total=len(lang_df)):
         split = SPLIT_CONFIG[row.size]
         for j in range(2):
-            row_id = len(new_rows)
+            row_id += 1
+            if row_id not in keep:
+                continue
             transcription = []
             translation = []
             audio_files = []
@@ -149,10 +159,10 @@ def create_conversation_dataset(lang):
 
             audio_file_path = path.join(audio_base, f'{len(new_rows)}.wav')
             concatenate_audio_files(audio_files, audio_file_path)
-            new_row.append()
-            new_rows.append((row_id, transcription, translation, path.join('audio', lang, f'{len(new_rows)}.wav')))
+            new_rows.append((len(new_rows), transcription, translation, path.join('audio', lang, f'{len(new_rows)}.wav')))
 
-    dataset = Dataset.from_pandas(DataFrame(new_rows, columns=['id', 'transcription', 'translation', 'path']))
+    df = DataFrame(new_rows, columns=['id', 'transcription', 'translation', 'path'])
+    dataset = Dataset.from_pandas(df)
     dataset.save_to_disk(path.join(STORAGE_DIR_CONVERSATION_DATA, lang))
     return dataset
 

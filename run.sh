@@ -1,3 +1,8 @@
 #! /usr/bin/env bash
 
-jetson-containers run -v ~/Downloads:/model-cache cascade-pipeline:r36.3.0 $@
+jetson-containers run \
+    -v ~/cache:/model-cache \
+    cascade-pipeline:r36.3.0 $@
+    # --device=/dev/ttyUSB0 \
+
+    #-v /dev/ttyUSB0:/dev/ttyUSB0 \

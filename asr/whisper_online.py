@@ -84,7 +84,15 @@ class HypothesisBuffer:
             self.commited_in_buffer.pop(0)
 
     def complete(self):
-        return self.buffer
+        self.commited_in_buffer.extend(self.buffer)
+        to_return = self.buffer
+        self.buffer = []
+        self.new = []
+        if len(self.commited_in_buffer):
+            na, nb, nt = self.commited_in_buffer[-1]
+            self.last_commited_word = nt
+            self.last_commited_time = nb
+        return to_return
 
 class OnlineASRProcessor:
 
@@ -144,7 +152,10 @@ class OnlineASRProcessor:
         """Runs on the current audio buffer.
         Returns: a tuple (beg_timestamp, end_timestamp, "text"), or (None, None, ""). 
         The non-emty text is confirmed (committed) partial transcript.
+
         """
+
+        
 
         prompt, non_prompt = self.prompt()
         logger.debug(f"PROMPT: {prompt}")
@@ -160,7 +171,7 @@ class OnlineASRProcessor:
         self.commited.extend(o)
         completed = self.to_flush(o)
         logger.debug(f">>>>COMPLETE NOW: {completed}")
-        the_rest = self.to_flush(self.transcript_buffer.complete())
+        the_rest = self.to_flush(self.transcript_buffer.buffer)
         logger.debug(f"INCOMPLETE: {the_rest}")
 
         # there is a newly confirmed text
@@ -421,7 +432,7 @@ def add_shared_args(parser):
     parser.add_argument('--lan', '--language', type=str, default='auto', help="Source language code, e.g. en,de,cs, or 'auto' for language detection.")
     parser.add_argument('--task', type=str, default='transcribe', choices=["transcribe","translate"],help="Transcribe or translate.")
     parser.add_argument('--backend', type=str, default="faster-whisper", choices=["faster-whisper", "whisper_timestamped", "mlx-whisper", "openai-api"],help='Load only this backend for Whisper processing.')
-    parser.add_argument('--vac', action="store_true", const=True, help='Use VAC = voice activity controller. Recommended.')
+    parser.add_argument('--vac', action="store_true", default=False, help='Use VAC = voice activity controller. Recommended.')
     parser.add_argument('--vac-chunk-size', type=float, default=0.04, help='VAC sample size in seconds.')
     parser.add_argument('--vad', action="store_true", default=False, help='Use VAD = voice activity detection, with the default parameters.')
     parser.add_argument('--buffer_trimming', type=str, default="segment", choices=["sentence", "segment"],help='Buffer trimming strategy -- trim completed sentences marked with punctuation mark and detected by sentence segmenter, or the completed segments returned by Whisper. Sentence segmenter must be installed for "sentence" option.')
@@ -564,7 +575,8 @@ class Runner:
         if now is None:
             now = time.time()-self.start
 
-        self.transcript_handler.handle(o[2], o[0], o[1], now)
+        if o[0] is not None:
+            self.transcript_handler.handle(o[2], o[0], o[1], now)
 
     def run(self):
         if self.args.vac:

@@ -1,10 +1,11 @@
 import alsaaudio
 import threading
 import numpy as np
+import librosa
 
-def process_audio(buffer, gain=16.0):
-    buf = np.frombuffer(buffer, dtype=np.int32)
-    buf = buf.astype(np.float32)/float(2**31)
+def process_audio(data, gain=1.0):
+    buf = np.frombuffer(data, dtype=np.int16)
+    buf = buf.astype(np.float32)/float(2**15)
     buf *= gain
     return np.clip(buf, -1, 1)
 
@@ -20,8 +21,9 @@ class AudioCapture(threading.Thread):
             alsaaudio.PCM_CAPTURE,
             channels=1,
             rate=16000,
-            format=alsaaudio.PCM_FORMAT_S32_LE,
-            periodsize=periodsize
+            format=alsaaudio.PCM_FORMAT_S16_LE,
+            periodsize=periodsize,
+            device="hw:Device,0"
         )
         
         self.running = True
@@ -32,4 +34,11 @@ class AudioCapture(threading.Thread):
         
     def stop(self):
         self.running = False
+
+def output_audio(data):
+    out = alsaaudio.PCM(alsaaudio.PCM_PLAYBACK, channels=1, rate=16000,
+                        format=alsaaudio.PCM_FORMAT_FLOAT_LE, periodsize=160, device='hw:Device,0')
+    if out.write(data) < 0:
+        print("Playback buffer underrun! Continuing nonetheless ...")
+    out.close()
 

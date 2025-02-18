@@ -22,11 +22,11 @@ class Nllb200:
         logger.info(f'Loading Nllb200 model ({self.get_model_name()})...')
         self.tokenizers = NllbTokenizer(self.model_id, cache_dir=STORAGE_DIR_MODEL + '/nllb')
         self.model = Translator(
-            STORAGE_DIR_MODEL + '/nllb-ctranslate',
+            STORAGE_DIR_MODEL + '/nllb-ctranslate-2',
             device=self.device,
             # RuntimeError: Flash attention 2 is not supported
             # flash_attention=True,
-            compute_type="float16",
+            compute_type="int8_float16",
         )
         self.model.load_model()
         e = time.time()

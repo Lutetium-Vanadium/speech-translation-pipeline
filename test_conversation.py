@@ -80,7 +80,7 @@ translation_settings = [0, 2]
 
 configs = product(test_langs, translation_settings)
 
-pipeline = CascadePipeline(['en'], device=device)
+pipeline = CascadePipeline(['en', 'zh'], device=device)
 runner = Runner(pipeline)
 
 args = create_args().parse_args()
@@ -122,7 +122,7 @@ for lang, translation_setting  in configs:
             args.file = path.join(STORAGE_DIR_CONVERSATION_DATA, sample[f'{src_lang}_audio_path'])
             runner.init(args)
 
-            latency = runner.run()
+            runner.run()
             pipeline.finish()
 
             truth = ""
@@ -146,7 +146,6 @@ for lang, translation_setting  in configs:
                 "prediction": pred.strip(),
                 "raw_transcription": pipeline.transcription_history,
                 "raw_prediction": pipeline.translation_history,
-                "latency": sum(latency)/len(latency)
             })
 
         with open(batch_output_file_path, "w", encoding="utf-8") as f:
@@ -176,7 +175,6 @@ for lang, translation_setting  in configs:
     evaluation_results[eval_key] = {
         "translation_setting": translation_setting,
     }
-    evaluation_results[eval_key]['latency'] = sum(prediction["latency"] for prediction in all_predictions)/len(all_predictions)
     for metric in evaluation_metrics:
         predictions = [prediction["prediction"] for prediction in all_predictions]
         references = [prediction["ground_truth"] for prediction in all_predictions]

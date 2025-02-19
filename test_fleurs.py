@@ -80,13 +80,14 @@ translation_settings = [0, 2]
 
 configs = product(test_langs, translation_settings)
 
-pipeline = CascadePipeline(['en'], device=device)
+pipeline = CascadePipeline(['en', 'zh'], device=device)
 runner = Runner(pipeline)
 
-args = create_args().parse_args()
+args, _unknown = create_args().parse_known_args()
 args.log_level = 'INFO'
 args.file = './jfk.wav'
 args.vac = True
+exit()
 
 runner.init(args)
 
@@ -132,7 +133,7 @@ for lang, translation_setting in configs:
                     args.file = path.join(STORAGE_DIR_REDUCED_FLEURS, sample[f'{src_lang}_audio_path'])
                     runner.init(args)
 
-                    latency = runner.run()
+                    runner.run()
                     pipeline.finish()
 
                     src_txt = sample[f'{src_lang}_transcription']
@@ -159,7 +160,6 @@ for lang, translation_setting in configs:
                             "prediction": translation.strip(),
                             "raw_transcription": pipeline.transcription_history,
                             "raw_prediction": pipeline.translation_history,
-                            "latency": sum(latency)/len(latency)
                         }
                     )
 
@@ -195,7 +195,6 @@ for lang, translation_setting in configs:
         predictions_lang = [
             prediction for prediction in all_predictions if prediction["tgt_lang"] == language
         ]
-        evaluation_results[language]['latency'] = sum(prediction["latency"] for prediction in predictions_lang)/len(predictions_lang)
 
         for metric in evaluation_metrics:
             predictions = [prediction["prediction"] for prediction in predictions_lang]

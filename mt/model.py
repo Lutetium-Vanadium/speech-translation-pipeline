@@ -77,6 +77,7 @@ class Nllb200Torch:
         return self.model_id.split("/")[-1]
 
     def load_model(self):
+        import torch
         t = time.time()
         if self.model is not None and self.tokenizers is not None:
             return self.tokenizers, self.model
@@ -86,7 +87,7 @@ class Nllb200Torch:
             self.model_id,
             cache_dir=STORAGE_DIR_MODEL + '/nllb',
             torch_dtype=torch.float16,
-            attn_implementation="flash_attention_2",
+            # attn_implementation="flash_attention_2",
         ).to(self.device).eval()
         e = time.time()
         logger.info(f"done. It took {round(e-t,2)} seconds.")

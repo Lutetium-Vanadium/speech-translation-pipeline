@@ -87,7 +87,6 @@ args, _unknown = create_args().parse_known_args()
 args.log_level = 'INFO'
 args.file = './jfk.wav'
 args.vac = True
-exit()
 
 runner.init(args)
 

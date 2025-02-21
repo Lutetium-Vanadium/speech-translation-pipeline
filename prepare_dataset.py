@@ -68,7 +68,8 @@ lang_id_to_fleurs = {
     'id': 'id_id',
     'th': 'th_th',
     'hi': 'hi_in',
-    'vi': 'vi_vn'
+    'vi': 'vi_vn',
+    'tl': 'fil_ph'
 }
 
 fleurs_eng: Dataset = load_fleurs_with_path('en')
@@ -209,8 +210,8 @@ def create_reduced_fleurs_dataset(lang):
     dataset.save_to_disk(path.join(STORAGE_DIR_REDUCED_FLEURS, lang))
     return dataset
 
-langs = [ 'zh', 'ms', 'id', 'th', 'hi', 'vi', ]
-d = []
+langs = [ 'zh', 'ms', 'id', 'th', 'hi', 'vi', 'tl' ]
 
 for lang in langs:
-    d.append(create_reduced_fleurs_dataset(lang))
+    create_reduced_fleurs_dataset(lang)
+    create_conversation_dataset(lang)

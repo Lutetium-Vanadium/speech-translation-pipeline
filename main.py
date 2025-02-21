@@ -83,7 +83,7 @@ class CascadePipeline(TranscriptHandler):
         logger.debug('ASR  CFM: ' + self.confirmed_transcription)
         logger.debug('ASR TODO: ' + self.unconfirmed_transcription)
 
-    def process_translation(self, transcript: str, src: str, tgt: str, tgt_speakerid: int):
+    def process_translation(self, transcript: str, src: str, tgt: str, tgt_speakerid: int, is_final):
         if src != self.last_transcribed_lang and self.last_transcribed_lang is not None:
             # Language has changed, translate whatever was confirmed transcribed but not confirmed
             # translated
@@ -92,7 +92,7 @@ class CascadePipeline(TranscriptHandler):
             self.screen.send_text(cfm_translated, tgt_speakerid, is_translation=True, is_confirmed=True)
             # Reset the translation context
             self.last_transcribed_sentence = ''
-            logger.debug(' CFM: ' + self.confirmed_translation)
+            logger.debug(' MT  CFM: ' + self.confirmed_translation)
 
             self.translation_history.append((self.confirmed_translation, src))
             self.confirmed_translation = ''
@@ -101,7 +101,7 @@ class CascadePipeline(TranscriptHandler):
             cfm_translated = self.mt_model.translate(transcript,source=src, target=tgt)
             self.confirmed_translation += cfm_translated
             self.screen.send_text(cfm_translated, tgt_speakerid, is_translation=True, is_confirmed=True)
-            logger.debug(' CFM: ' + self.confirmed_translation)
+            logger.debug(' MT  CFM: ' + self.confirmed_translation)
             return
 
         text = self.last_transcribed_sentence + transcript
@@ -121,7 +121,7 @@ class CascadePipeline(TranscriptHandler):
         for i, s in enumerate(sentences):
             old_l = l
             l += len(s)
-            if l <= confirmed_len:
+            if l <= confirmed_len and (is_final or i+1 < len(sentences)):
                 cfm_to_translate += s
             else:
                 if last_was_confirmed:
@@ -146,7 +146,7 @@ class CascadePipeline(TranscriptHandler):
         logger.debug(' MT TODO: ' + self.unconfirmed_translation)
         logger.debug(' MT LAST: ' + self.last_transcribed_sentence)
 
-    def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float):
+    def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float, is_final = False):
         logger.debug('=====================')
         src = self.asr.get_last_language()
             
@@ -158,7 +158,7 @@ class CascadePipeline(TranscriptHandler):
             if end_timestamp is not None:
                 self.last_confirmed_transcription_timestamp = max(self.last_confirmed_transcription_timestamp, end_timestamp)
             self.process_transcribed(transcript, src, src_speakerid)
-            self.process_translation(transcript, src, tgt, tgt_speakerid)
+            self.process_translation(transcript, src, tgt, tgt_speakerid, is_final)
 
             self.last_transcribed_lang = src
         except ValueError:

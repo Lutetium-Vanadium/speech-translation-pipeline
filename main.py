@@ -86,6 +86,8 @@ class CascadePipeline(TranscriptHandler):
         logger.debug('ASR TODO: ' + self.unconfirmed_transcription)
 
     def process_final_translation_bit(self):
+        if len(self.last_transcribed_sentence) == 0:
+            return
         src, _src_speakerid, tgt, tgt_speakerid = self.get_speaker_data()
         cfm_translated = self.mt_model.translate(self.last_transcribed_sentence,source=src, target=tgt)
         self.confirmed_translation += cfm_translated

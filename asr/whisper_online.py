@@ -511,7 +511,7 @@ class TranscriptHandler:
     def init(self, asr: OnlineASRProcessor) -> None:
         self.asr = asr
 
-    def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float, is_final=False) -> None:
+    def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float) -> None:
         print_transcript(transcript, start_timestamp, end_timestamp, self.asr.get_last_language(), now)
     
     def handle_silence(self):
@@ -564,20 +564,19 @@ class Runner:
 
     def process_iter(self):
         try:
-            is_final = isinstance(self.asr, VACOnlineASRProcessor) and self.asr.is_currently_final
             o = self.online.process_iter()
-            self.handle_transcript(o, is_final)
+            self.handle_transcript(o)
             if self.silence_time > 0 and self.online.time_since_last_voice() > self.silence_time:
                 self.transcript_handler.handle_silence()
         except AssertionError as e:
             logger.error(f"assertion error: {e}")
 
-    def handle_transcript(self, o, is_final, now=None):
+    def handle_transcript(self, o, now=None):
         if now is None:
             now = time.time()-self.start
 
         if o[0] is not None:
-            self.transcript_handler.handle(o[2], o[0], o[1], now, is_final)
+            self.transcript_handler.handle(o[2], o[0], o[1], now)
 
     def run(self):
         if self.args.vac:
@@ -631,7 +630,7 @@ class Runner:
             now = None
 
         o = self.online.finish()
-        self.handle_transcript(o, is_final=True, now=now)
+        self.handle_transcript(o, now=now)
 
         return latency
 

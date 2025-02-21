@@ -85,17 +85,19 @@ class CascadePipeline(TranscriptHandler):
         logger.debug('ASR  CFM: ' + self.confirmed_transcription)
         logger.debug('ASR TODO: ' + self.unconfirmed_transcription)
 
-    def process_translation(self, transcript: str, src: str, tgt: str, tgt_speakerid: int, is_final):
-        if src != self.last_transcribed_lang and self.last_transcribed_lang is not None:
-            # Language has changed, translate whatever was confirmed transcribed but not confirmed
-            # translated
-            cfm_translated = self.mt_model.translate(self.last_transcribed_sentence,source=tgt, target=src)
-            self.confirmed_translation += cfm_translated
-            self.screen.send_text(cfm_translated, tgt_speakerid, is_translation=True, is_confirmed=True)
-            # Reset the translation context
-            self.last_transcribed_sentence = ''
-            logger.debug(' MT  CFM: ' + self.confirmed_translation)
+    def process_final_translation_bit(self):
+        src, _src_speakerid, tgt, tgt_speakerid = self.get_speaker_data()
+        cfm_translated = self.mt_model.translate(self.last_transcribed_sentence,source=src, target=tgt)
+        self.confirmed_translation += cfm_translated
+        self.screen.send_text(cfm_translated, tgt_speakerid, is_translation=True, is_confirmed=True)
+        # Reset the translation context
+        self.last_transcribed_sentence = ''
+        logger.debug(' MT  CFM: ' + self.confirmed_translation)
 
+    def process_translation(self, transcript: str, src: str, tgt: str, tgt_speakerid: int):
+        if src != self.last_transcribed_lang and self.last_transcribed_lang is not None:
+            # Language has changed, translate whatever was confirmed transcribed but not confirmed translated
+            self.process_final_translation_bit() 
             self.translation_history.append((self.confirmed_translation, src))
             self.confirmed_translation = ''
             self.tts_spoken = 0
@@ -124,7 +126,7 @@ class CascadePipeline(TranscriptHandler):
         for i, s in enumerate(sentences):
             old_l = l
             l += len(s)
-            if l <= confirmed_len and (is_final or i+1 < len(sentences)):
+            if l <= confirmed_len and i+1 < len(sentences):
                 cfm_to_translate += s
             else:
                 if last_was_confirmed:
@@ -149,30 +151,41 @@ class CascadePipeline(TranscriptHandler):
         logger.debug(' MT TODO: ' + self.unconfirmed_translation)
         logger.debug(' MT LAST: ' + self.last_transcribed_sentence)
 
-    def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float, is_final = False):
+    def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float):
         logger.debug('=====================')
         src = self.asr.get_last_language()
             
         try:
-            src_speakerid = self.languages.index(src)
-            tgt_speakerid = 1 - src_speakerid
-            tgt = self.languages[tgt_speakerid]
+            src, src_speakerid, tgt, tgt_speakerid = self.get_speaker_data(src)
 
             if end_timestamp is not None:
                 self.last_confirmed_transcription_timestamp = max(self.last_confirmed_transcription_timestamp, end_timestamp)
             self.process_transcribed(transcript, src, src_speakerid)
-            self.process_translation(transcript, src, tgt, tgt_speakerid, is_final)
+            self.process_translation(transcript, src, tgt, tgt_speakerid)
 
             self.last_transcribed_lang = src
         except ValueError:
             logger.debug(f"skipping different language {src}")
         logger.debug('=====================')
 
+    def get_speaker_data(self, src=None):
+        if src is None:
+            src = self.last_transcribed_lang
+
+        if src is None:
+            raise ValueError('trying to get last speaker data when there is none')
+
+        src_speakerid = self.languages.index(src)
+        tgt_speakerid = 1 - src_speakerid
+        tgt = self.languages[tgt_speakerid]
+        return src, src_speakerid, tgt, tgt_speakerid
+
     def handle_silence(self):
         if self.tts_model is None:
             return
         if self.last_transcribed_lang is None:
             return
+        self.process_final_translation_bit() 
 
         to_speak = self.confirmed_translation[self.tts_spoken:]
 
@@ -190,12 +203,10 @@ class CascadePipeline(TranscriptHandler):
         if self.last_transcribed_lang is None:
             return
 
-        src_speakerid = self.languages.index(self.last_transcribed_lang)
-        tgt_speakerid = 1 - src_speakerid
-        tgt = self.languages[tgt_speakerid]
+        src, src_speakerid, tgt, tgt_speakerid = self.get_speaker_data()
 
         self.transcription_history.append([
-            self.confirmed_transcription + self.unconfirmed_transcription, self.last_transcribed_lang
+            self.confirmed_transcription + self.unconfirmed_transcription, src,
         ])
         if len(self.unconfirmed_transcription) > 0:
             self.screen.send_text(self.unconfirmed_transcription, src_speakerid, is_translation=False, is_confirmed=True)

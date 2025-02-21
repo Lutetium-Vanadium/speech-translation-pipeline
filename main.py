@@ -34,6 +34,7 @@ class CascadePipeline(TranscriptHandler):
         self.transcription_history = []
         self.translation_history = []
         self.confirmed_transcription = ''
+        self.tts_spoken = 0
         self.unconfirmed_transcription = ''
         self.last_transcribed_sentence = ''
         self.confirmed_translation = ''
@@ -48,6 +49,7 @@ class CascadePipeline(TranscriptHandler):
         self.unconfirmed_transcription = ''
         self.last_transcribed_sentence = ''
         self.confirmed_translation = ''
+        self.tts_spoken = 0
         self.unconfirmed_translation = ''
         if self.asr is not None:
             self.asr.reset()
@@ -96,6 +98,7 @@ class CascadePipeline(TranscriptHandler):
 
             self.translation_history.append((self.confirmed_translation, src))
             self.confirmed_translation = ''
+            self.tts_spoken = 0
 
         if self.tokenizer is None:
             cfm_translated = self.mt_model.translate(transcript,source=src, target=tgt)
@@ -170,13 +173,17 @@ class CascadePipeline(TranscriptHandler):
             return
         if self.last_transcribed_lang is None:
             return
-        if len(self.confirmed_translation) == 0:
+
+        to_speak = self.confirmed_translation[self.tts_spoken:]
+
+        if len(to_speak) == 0:
             return
 
         lang_idx = self.languages.index(self.last_transcribed_lang)
         tgt = self.languages[1-lang_idx]
 
-        waveform = self.tts_model.synthesize(self.confirmed_translation, tgt)
+        self.tts_spoken += len(to_speak)
+        waveform = self.tts_model.synthesize(to_speak, tgt)
         output_audio(waveform)
 
     def finish(self):

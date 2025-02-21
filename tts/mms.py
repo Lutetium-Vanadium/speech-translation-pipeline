@@ -57,6 +57,6 @@ class MmsTts:
         with torch.no_grad():
             inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
 
-            outputs = self.model(inputs['input_ids'])
-            return outputs.waveform[0]
+            outputs = self.model(inputs['input_ids'], speaker_id=17)
+            return outputs.waveform[0].cpu().numpy()
     

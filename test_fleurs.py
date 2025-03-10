@@ -61,12 +61,6 @@ output_folder.mkdir(exist_ok=True)
 # Define models
 device = "cuda"
 
-# Define evaluation metrics
-wer_metric = evaluate.load("wer")
-bleu_metric = evaluate.load("sacrebleu")
-chrf_metric = evaluate.load("chrf")
-evaluation_metrics = [wer_metric, bleu_metric, chrf_metric]
-
 test_langs = [
     'zh',
     'hi',
@@ -74,25 +68,21 @@ test_langs = [
     'ms',
     'vi',
     'th',
+    'tl',
 ]
 
 translation_settings = [0, 2]
 
-configs = product(test_langs, translation_settings)
+configs = list(product(test_langs, translation_settings))
 
 pipeline = CascadePipeline(['en', 'zh'], device=device)
 runner = Runner(pipeline)
 
 args, _unknown = create_args().parse_known_args()
 args.log_level = 'INFO'
-args.file = './jfk.wav'
 args.vac = True
 
 runner.init(args)
-
-print('Warming up the models')
-runner.run()
-pipeline.finish()
 
 for lang, translation_setting in configs:
     print(f'### TESTING LANG: {lang} (translation: {translation_setting}) ###')
@@ -132,8 +122,12 @@ for lang, translation_setting in configs:
                     args.file = path.join(STORAGE_DIR_REDUCED_FLEURS, sample[f'{src_lang}_audio_path'])
                     runner.init(args)
 
-                    runner.run()
-                    pipeline.finish()
+                    error = ''
+                    try:
+                        runner.run()
+                        pipeline.finish()
+                    except Exception as e:
+                        error = str(e)
 
                     src_txt = sample[f'{src_lang}_transcription']
                     tgt_txt = sample[f'{tgt_lang}_transcription']
@@ -159,12 +153,27 @@ for lang, translation_setting in configs:
                             "prediction": translation.strip(),
                             "raw_transcription": pipeline.transcription_history,
                             "raw_prediction": pipeline.translation_history,
+                            "error": error,
                         }
                     )
 
                 with open(batch_output_file_path, "w", encoding="utf-8") as f:
                     json.dump(predictions, f, indent=4)
+ 
+del pipeline
+del runner
 
+# Define evaluation metrics
+wer_metric = evaluate.load("wer")
+bleu_metric = evaluate.load("sacrebleu")
+chrf_metric = evaluate.load("chrf")
+bert_metric = evaluate.load("bertscore")
+evaluation_metrics = [wer_metric, bleu_metric, chrf_metric, bert_metric]
+
+print('Evaluating results...')
+for lang, translation_setting in configs:
+    lang_codes = ['en', lang]
+    langs = '_'.join(lang_codes)
 
     lang_combinations = ['-'.join(combo) for combo in permutations(lang_codes, 2)]
     all_predictions = []
@@ -204,6 +213,8 @@ for lang, translation_setting in configs:
                 kwargs['use_effective_order'] = True
             elif metric == chrf_metric:
                 kwargs['word_order'] = 2
+            elif metric == bert_metric:
+                kwargs['model_type'] = "xlm-roberta-large"
 
             results = metric.compute(predictions=predictions, references=references, **kwargs)
 

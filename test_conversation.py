@@ -61,12 +61,6 @@ output_folder.mkdir(exist_ok=True)
 # Define models
 device = "cuda"
 
-# Define evaluation metrics
-wer_metric = evaluate.load("wer")
-bleu_metric = evaluate.load("sacrebleu")
-chrf_metric = evaluate.load("chrf")
-evaluation_metrics = [wer_metric, bleu_metric, chrf_metric]
-
 test_langs = [
     'zh',
     'id',
@@ -74,23 +68,21 @@ test_langs = [
     'ms',
     'vi',
     'th',
+    'tl',
 ]
 
 translation_settings = [0, 2]
 
-configs = product(test_langs, translation_settings)
+configs = list(product(test_langs, translation_settings))
 
 pipeline = CascadePipeline(['en', 'zh'], device=device)
 runner = Runner(pipeline)
 
 args = create_args().parse_args()
 args.log_level = 'INFO'
-args.file = './jfk.wav'
-runner.init(args)
+args.vac = True
 
-print('Warming up the models')
-runner.run()
-pipeline.finish()
+runner.init(args)
 
 evaluation_results = {
 }
@@ -119,11 +111,15 @@ for lang, translation_setting  in configs:
         # Predict for batch
         predictions = []
         for sample in tqdm(batch, leave=False):
-            args.file = path.join(STORAGE_DIR_CONVERSATION_DATA, sample[f'{src_lang}_audio_path'])
+            args.file = path.join(STORAGE_DIR_CONVERSATION_DATA, sample[f'{lang}_audio_path'])
             runner.init(args)
-
-            runner.run()
-            pipeline.finish()
+            
+            error = ''
+            try:
+                runner.run()
+                pipeline.finish()
+            except Exception as e:
+                error = str(e)
 
             truth = ""
             pred = ""
@@ -146,10 +142,23 @@ for lang, translation_setting  in configs:
                 "prediction": pred.strip(),
                 "raw_transcription": pipeline.transcription_history,
                 "raw_prediction": pipeline.translation_history,
+                "error": error,
             })
 
         with open(batch_output_file_path, "w", encoding="utf-8") as f:
             json.dump(predictions, f, indent=4)
+
+del pipeline
+del runner
+
+# Define evaluation metrics
+wer_metric = evaluate.load("wer")
+bleu_metric = evaluate.load("sacrebleu")
+chrf_metric = evaluate.load("chrf")
+bert_metric = evaluate.load("bertscore")
+
+evaluation_metrics = [wer_metric, bleu_metric, chrf_metric, bert_metric]
+
 
 print('Evaluating results...')
 for lang, translation_setting  in configs:
@@ -184,6 +193,8 @@ for lang, translation_setting  in configs:
             kwargs['use_effective_order'] = True
         elif metric == chrf_metric:
            kwargs['word_order'] = 2
+        elif metric == bert_metric:
+            kwargs['model_type'] = "xlm-roberta-large"
 
         results = metric.compute(predictions=predictions, references=references, **kwargs)
 

@@ -1,6 +1,9 @@
 import logging
 import time
 from functools import wraps
+import os
+
+enable_latency_funcs = len(os.getenv('ENABLE_LATENCY', '')) >= 1
 
 STORAGE_DIR = "/model-cache"
 STORAGE_DIR_MODEL = STORAGE_DIR + "/models"
@@ -15,6 +18,9 @@ latency_measurements = {}
 
 def measure_latency(name):
     def decorator(func):
+        if not enable_latency_funcs:
+            return func
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             s = time.time()

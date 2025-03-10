@@ -2,6 +2,7 @@ from asr import Runner, logger, TranscriptHandler, create_args
 from asr import create_tokenizer, VACOnlineASRProcessor, OnlineASRProcessor
 from uart import Screen
 from audio import AudioCapture, output_audio
+from common import measure_latency
 import os
 
 from mt import Nllb200
@@ -153,6 +154,7 @@ class CascadePipeline(TranscriptHandler):
         logger.debug(' MT TODO: ' + self.unconfirmed_translation)
         logger.debug(' MT LAST: ' + self.last_transcribed_sentence)
 
+    @measure_latency('pipeline')
     def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float):
         logger.debug('=====================')
         src = self.asr.get_last_language()
@@ -221,12 +223,13 @@ class CascadePipeline(TranscriptHandler):
             self.screen.send_text(self.unconfirmed_translation, tgt_speakerid, is_translation=True, is_confirmed=True)
 
 if __name__ == '__main__':
-    pipeline = CascadePipeline(languages=['en', 'zh'], enable_tts=True)
+    args = create_args().parse_args()
+    is_audio_file = os.path.isfile(args.file or '')
+    pipeline = CascadePipeline(languages=['en', 'zh'], enable_tts=is_audio_file==False)
 
     runner = Runner(pipeline, silence_time=4)
-    args = create_args().parse_args()
     runner.init(args)
-    if os.path.isfile(args.file or ''):
+    if is_audio_file:
         runner.run()
     else:
         audio_device = AudioCapture(output_audio=lambda a: runner.online.insert_audio_chunk(a))

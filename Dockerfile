@@ -1,7 +1,7 @@
 #---
 # name: cascade-pipeline
 # group: app
-# depends: [torchaudio, transformers, faster-whisper, flash-attention]
+# depends: [torchaudio, transformers, faster-whisper, whisper_s2t]
 # requires: '>=34.1.0'
 #---
 ARG BASE_IMAGE

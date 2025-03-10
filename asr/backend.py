@@ -1,8 +1,8 @@
 import sys
-import io
+import io, os
 import soundfile as sf
 import math
-from common import logger
+from common import logger, measure_latency
 
 # Whisper backend
 
@@ -77,6 +77,47 @@ class WhisperTimestampedASR(ASRBase):
         self.transcribe_kargs["task"] = "translate"
 
 
+class TensorRTWhisper(ASRBase):
+    sep = " "
+
+    def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
+        import whisper_s2t
+        self.transcribe_kargs["word_timestamps"] = True
+        self.transcribe_kargs["word_aligner_model"] = os.path.join(model_dir, 'tiny')
+        self.transcribe_kargs["beam_size"] = 5
+
+        model = whisper_s2t.load_model(
+            os.path.join(model_dir, "whisper_turbo"),
+            backend='TensorRT-LLM',
+            asr_options=self.transcribe_kargs,
+            file_io=False)
+
+        return model
+
+    @measure_latency('asr')
+    def transcribe(self, audio, init_prompt=""):
+        result = self.model.transcribe(
+                [audio], [self.original_language or 'auto'],
+                initial_prompts=[init_prompt])[0][0]
+        self.last_language = result['lang']
+        return result
+ 
+    def ts_words(self,s):
+        # return: transcribe result object to [(beg,end,"word1"), ...]
+        o = []
+        for w in s["word_timestamps"]:
+            t = (w["start"],w["end"],w["word"])
+            o.append(t)
+        return o
+
+    def segments_end_ts(self, res):
+        return [s["end"] for s in res["word_timestamps"]]
+
+    def use_vad(self):
+        self.transcribe_kargs["vad"] = True
+
+    def set_translate_task(self):
+        self.transcribe_kargs["task"] = "translate"
 
 
 class FasterWhisperASR(ASRBase):
@@ -109,6 +150,7 @@ class FasterWhisperASR(ASRBase):
 #        model = WhisperModel(modelsize, device="cpu", compute_type="int8") #, download_root="faster-disk-cache-dir/")
         return model
 
+    @measure_latency('asr')
     def transcribe(self, audio, init_prompt=""):
 
         # tested: beam_size=5 is faster and better than 1 (on one 200 second document from En ESIC, min chunk 0.01)

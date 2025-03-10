@@ -1,6 +1,6 @@
 import gc
 import time
-from common import logger, STORAGE_DIR_MODEL
+from common import logger, STORAGE_DIR_MODEL, measure_latency
 
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -25,11 +25,11 @@ class Nllb200:
         logger.info(f'Loading Nllb200 model ({self.get_model_name()})...')
         self.tokenizers = NllbTokenizer(self.model_id, cache_dir=STORAGE_DIR_MODEL + '/nllb')
         self.model = Translator(
-            STORAGE_DIR_MODEL + '/nllb-ctranslate-2',
+            STORAGE_DIR_MODEL + '/nllb-ctranslate',
             device=self.device,
             # RuntimeError: Flash attention 2 is not supported
             # flash_attention=True,
-            compute_type="int8_float16",
+            compute_type="float16",
         )
         self.model.load_model()
         e = time.time()
@@ -45,6 +45,7 @@ class Nllb200:
         # Flush the current model from memory
         gc.collect()
 
+    @measure_latency('mt')
     def translate(self, text: str, source: str = "en", target: str = "en"):
         if len(text) == 0:
             return ''

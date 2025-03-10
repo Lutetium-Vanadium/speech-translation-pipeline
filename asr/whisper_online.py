@@ -297,7 +297,7 @@ class OnlineASRProcessor:
         else:
             b = offset + sents[0][0]
             e = offset + sents[-1][1]
-        return (b,e,t)
+        return (b,e,t + sep)
 
     def time_since_last_voice(self):
         return 0.
@@ -428,10 +428,10 @@ def add_shared_args(parser):
     parser.add_argument('--min-chunk-size', type=float, default=1.0, help='Minimum audio chunk size in seconds. It waits up to this time to do processing. If the processing takes shorter time, it waits, otherwise it processes the whole segment that was received by this time.')
     parser.add_argument('--model', type=str, default='large-v3-turbo', choices="tiny.en,tiny,base.en,base,small.en,small,medium.en,medium,large-v1,large-v2,large-v3,large,large-v3-turbo".split(","),help="Name size of the Whisper model to use (default: large-v3-turbo). The model is automatically downloaded from the model hub if not present in model cache dir.")
     parser.add_argument('--model_cache_dir', type=str, default=STORAGE_DIR_MODEL+'/whisper', help="Overriding the default model cache dir where models downloaded from the hub are saved")
-    parser.add_argument('--model_dir', type=str, default=None, help="Dir where Whisper model.bin and other files are saved. This option overrides --model and --model_cache_dir parameter.")
+    parser.add_argument('--model_dir', type=str, default=STORAGE_DIR_MODEL, help="Dir where Whisper model.bin and other files are saved. This option overrides --model and --model_cache_dir parameter.")
     parser.add_argument('--lan', '--language', type=str, default='auto', help="Source language code, e.g. en,de,cs, or 'auto' for language detection.")
     parser.add_argument('--task', type=str, default='transcribe', choices=["transcribe","translate"],help="Transcribe or translate.")
-    parser.add_argument('--backend', type=str, default="faster-whisper", choices=["faster-whisper", "whisper_timestamped", "mlx-whisper", "openai-api"],help='Load only this backend for Whisper processing.')
+    parser.add_argument('--backend', type=str, default="whisper-s2t", choices=["faster-whisper", "whisper_timestamped", "mlx-whisper", "openai-api", "whisper-s2t"],help='Load only this backend for Whisper processing.')
     parser.add_argument('--vac', action="store_true", default=False, help='Use VAC = voice activity controller. Recommended.')
     parser.add_argument('--vac-chunk-size', type=float, default=0.04, help='VAC sample size in seconds.')
     parser.add_argument('--vad', action="store_true", default=False, help='Use VAD = voice activity detection, with the default parameters.')
@@ -448,7 +448,9 @@ def asr_factory(args, logfile=sys.stderr):
         logger.debug("Using OpenAI API.")
         asr = OpenaiApiASR(lan=args.lan)
     else:
-        if backend == "faster-whisper":
+        if backend == "whisper-s2t":
+            asr_cls = TensorRTWhisper
+        elif backend == "faster-whisper":
             asr_cls = FasterWhisperASR
         elif backend == "mlx-whisper":
             asr_cls = MLXWhisper
@@ -589,7 +591,6 @@ class Runner:
         if self.audio is None:
             raise Exception('no audio loaded. Make sure to call init')
 
-        latency = []
         if self.args.offline: ## offline mode processing (for testing/debugging)
             self.handle_data_chunk(self.audio)
             now = None
@@ -623,7 +624,6 @@ class Runner:
                 beg = end
                 self.handle_data_chunk(a)
                 now = time.time() - self.start
-                latency.append(now-end)
 
                 if end >= self.duration:
                     break
@@ -631,8 +631,6 @@ class Runner:
 
         o = self.online.finish()
         self.handle_transcript(o, now=now)
-
-        return latency
 
 
 if __name__ == "__main__":

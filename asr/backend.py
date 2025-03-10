@@ -84,7 +84,8 @@ class TensorRTWhisper(ASRBase):
         import whisper_s2t
         self.transcribe_kargs["word_timestamps"] = True
         self.transcribe_kargs["word_aligner_model"] = os.path.join(model_dir, 'tiny')
-        self.transcribe_kargs["beam_size"] = 5
+        # Doesn't work at the moment
+        # self.transcribe_kargs["beam_size"] = 5
 
         model = whisper_s2t.load_model(
             os.path.join(model_dir, "whisper_turbo"),

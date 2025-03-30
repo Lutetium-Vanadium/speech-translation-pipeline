@@ -98,7 +98,7 @@ class OnlineASRProcessor:
 
     SAMPLING_RATE = 16000
 
-    def __init__(self, asr, tokenizer=None, buffer_trimming=("segment", 15), logfile=sys.stderr):
+    def __init__(self, asr, tokenizer=None, buffer_trimming=("segment", 15), logfile=sys.stderr, lang_prob=0.4):
         """asr: WhisperASR object
         tokenizer: sentence tokenizer object for the target language. Must have a method *split* that behaves like the one of MosesTokenizer. It can be None, if "segment" buffer trimming option is used, then tokenizer is not used at all.
         ("segment", 15)
@@ -108,6 +108,7 @@ class OnlineASRProcessor:
         self.asr = asr
         self.tokenizer = tokenizer
         self.logfile = logfile
+        self.lang_prob = lang_prob
 
         self.reset()
 
@@ -115,6 +116,26 @@ class OnlineASRProcessor:
 
     def get_last_language(self):
         return self.asr.last_language
+
+    def set_languages(self, languages: list[str]):
+        if languages is None:
+            self.asr.pick_language = None
+            return
+
+        min_req_lang_prob = self.lang_prob
+
+        def pick_language(probs):
+            mx = None
+            mx_prob = None
+            for l in languages:
+                if probs[l] > min_req_lang_prob and probs[l] > mx_prob:
+                    mx = l
+                    mx_prob = probs[l]
+            if mx is not None:
+                return mx
+            return max(probs, key=probs.get)
+
+        self.asr.pick_language = pick_language
 
     def reset(self, offset=None):
         """run this when starting or restarting processing"""
@@ -324,6 +345,9 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
     def get_last_language(self):
         return self.online.get_last_language()
 
+    def set_languages(self, languages: list[str]):
+        self.online.set_languages(languages)
+
     def reset(self):
         self.online.reset()
         self.vac.reset_states()
@@ -435,6 +459,7 @@ def add_shared_args(parser):
     parser.add_argument('--buffer_trimming', type=str, default="segment", choices=["sentence", "segment"],help='Buffer trimming strategy -- trim completed sentences marked with punctuation mark and detected by sentence segmenter, or the completed segments returned by Whisper. Sentence segmenter must be installed for "sentence" option.')
     parser.add_argument('--buffer_trimming_sec', type=float, default=15, help='Buffer trimming length threshold in seconds. If buffer length is longer, trimming sentence/segment is triggered.')
     parser.add_argument("-l", "--log-level", dest="log_level", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help="Set the log level", default='DEBUG')
+    parser.add_argument("--prob", type=float, help="Set the lang prob", default=0.4)
 
 def asr_factory(args, logfile=sys.stderr):
     """
@@ -476,9 +501,9 @@ def asr_factory(args, logfile=sys.stderr):
     # Create the OnlineASRProcessor
     if args.vac:
         
-        online = VACOnlineASRProcessor(args.min_chunk_size, asr,tokenizer,logfile=logfile,buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec))
+        online = VACOnlineASRProcessor(args.min_chunk_size, asr,tokenizer,logfile=logfile,buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec), lang_prob=args.prob)
     else:
-        online = OnlineASRProcessor(asr,tokenizer,logfile=logfile,buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec))
+        online = OnlineASRProcessor(asr,tokenizer,logfile=logfile,buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec), lang_prob=args.prob)
 
     return asr, online
 

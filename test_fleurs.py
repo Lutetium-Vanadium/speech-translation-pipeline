@@ -88,7 +88,7 @@ for lang, translation_setting in configs:
     print(f'### TESTING LANG: {lang} (translation: {translation_setting}) ###')
 
     pipeline.translation_setting = translation_setting
-    pipeline.languages = ['en', lang]
+    pipeline.set_languages(['en', lang])
     
     gc.collect()
 

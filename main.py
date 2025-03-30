@@ -59,6 +59,14 @@ class CascadePipeline(TranscriptHandler):
         super().init(asr)
         self.mt_model.load_model()
 
+        self.set_languages(self.languages)
+
+    def set_languages(self, languages: list[str]):
+        if len(language) != 2:
+            raise "bad number of languages"
+        self.languages = languages
+        self.asr.set_languages(languages)
+
         if self.tts_model is not None:
             for l in self.languages:
                 self.tts_model.load_lang(l)

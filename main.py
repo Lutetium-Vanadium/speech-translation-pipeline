@@ -1,6 +1,6 @@
 from asr import Runner, logger, TranscriptHandler, create_args
 from asr import create_tokenizer, VACOnlineASRProcessor, OnlineASRProcessor
-from uart import Screen
+from ui import Screen
 from audio import AudioCapture, output_audio
 from common import measure_latency
 from zhconv import convert
@@ -47,7 +47,7 @@ class CascadePipeline(TranscriptHandler):
         self.last_transcribed_sentence = ''
         self.confirmed_translation = ''
         self.unconfirmed_translation = ''
-        self.screen = Screen()
+        self.screen = Screen(set_languages=self.ui_set_languages)
 
     def reset(self):
         self.last_transcribed_lang = None
@@ -67,10 +67,15 @@ class CascadePipeline(TranscriptHandler):
         self.mt_model.load_model()
 
         self.set_languages(self.languages)
+        self.screen.send_go_select_lang()
+
+    def ui_set_languages(self, languages: list[str]):
+        self.set_languages(languages)
+        self.screen.send_go_chat(languages[0], languages[1])
 
     def set_languages(self, languages: list[str]):
-        if len(language) != 2:
-            raise "bad number of languages"
+        if len(languages) != 2:
+            raise Exception("bad number of languages")
         self.languages = languages
         self.asr.set_languages(languages)
 

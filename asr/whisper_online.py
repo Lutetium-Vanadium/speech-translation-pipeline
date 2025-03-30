@@ -146,17 +146,14 @@ class OnlineASRProcessor:
             l += len(x)+1
             prompt.append(x)
         non_prompt = self.commited[k:]
-        return self.asr.sep.join(prompt[::-1]), self.asr.sep.join(t for _,_,t in non_prompt)
+        return self.asr.sep(self.asr.last_language).join(prompt[::-1]), self.asr.sep(self.asr.last_language).join(t for _,_,t in non_prompt)
 
     def process_iter(self):
         """Runs on the current audio buffer.
         Returns: a tuple (beg_timestamp, end_timestamp, "text"), or (None, None, ""). 
         The non-emty text is confirmed (committed) partial transcript.
-
         """
-
         
-
         prompt, non_prompt = self.prompt()
         logger.debug(f"PROMPT: {prompt}")
         logger.debug(f"CONTEXT: {non_prompt}")
@@ -184,7 +181,7 @@ class OnlineASRProcessor:
         if self.buffer_trimming_way == "segment":
             s = self.buffer_trimming_sec  # trim the completed segments longer than s,
         else:
-            s = 30 # if the audio buffer is longer than 30s, trim it
+            s = 15 # if the audio buffer is longer than 30s, trim it
         
         if len(self.audio_buffer)/self.SAMPLING_RATE > s:
             self.chunk_completed_segment(res)
@@ -289,7 +286,7 @@ class OnlineASRProcessor:
         # sents: [(beg1, end1, "sentence1"), ...] or [] if empty
         # return: (beg1,end-of-last-sentence,"concatenation of sentences") or (None, None, "") if empty
         if sep is None:
-            sep = self.asr.sep
+            sep = self.asr.sep(self.asr.last_language)
         t = sep.join(s[2] for s in sents)
         if len(sents) == 0:
             b = None
@@ -428,7 +425,7 @@ def add_shared_args(parser):
     parser.add_argument('--min-chunk-size', type=float, default=1.0, help='Minimum audio chunk size in seconds. It waits up to this time to do processing. If the processing takes shorter time, it waits, otherwise it processes the whole segment that was received by this time.')
     parser.add_argument('--model', type=str, default='large-v3-turbo', choices="tiny.en,tiny,base.en,base,small.en,small,medium.en,medium,large-v1,large-v2,large-v3,large,large-v3-turbo".split(","),help="Name size of the Whisper model to use (default: large-v3-turbo). The model is automatically downloaded from the model hub if not present in model cache dir.")
     parser.add_argument('--model_cache_dir', type=str, default=STORAGE_DIR_MODEL+'/whisper', help="Overriding the default model cache dir where models downloaded from the hub are saved")
-    parser.add_argument('--model_dir', type=str, default=STORAGE_DIR_MODEL, help="Dir where Whisper model.bin and other files are saved. This option overrides --model and --model_cache_dir parameter.")
+    parser.add_argument('--model_dir', type=str, default=STORAGE_DIR_MODEL+'/whisper_turbo', help="Dir where Whisper model.bin and other files are saved. This option overrides --model and --model_cache_dir parameter.")
     parser.add_argument('--lan', '--language', type=str, default='auto', help="Source language code, e.g. en,de,cs, or 'auto' for language detection.")
     parser.add_argument('--task', type=str, default='transcribe', choices=["transcribe","translate"],help="Transcribe or translate.")
     parser.add_argument('--backend', type=str, default="whisper-s2t", choices=["faster-whisper", "whisper_timestamped", "mlx-whisper", "openai-api", "whisper-s2t"],help='Load only this backend for Whisper processing.')

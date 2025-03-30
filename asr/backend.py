@@ -8,8 +8,12 @@ from common import logger, measure_latency
 
 class ASRBase:
 
-    sep = " "   # join transcribe words with this character (" " for whisper_timestamped,
-                # "" for faster-whisper because it emits the spaces when neeeded)
+    # join transcribe words with this character (" " for whisper_timestamped,
+    # "" for faster-whisper because it emits the spaces when neeeded)
+    def sep(self, lang: str):
+        if lang in ['zh', 'th']:
+            return ''
+        return ' '
 
     def __init__(self, lan, modelsize=None, cache_dir=None, model_dir=None, logfile=sys.stderr):
         self.logfile = logfile
@@ -38,8 +42,6 @@ class WhisperTimestampedASR(ASRBase):
     """Uses whisper_timestamped library as the backend. Initially, we tested the code on this backend. It worked, but slower than faster-whisper.
     On the other hand, the installation for GPU could be easier.
     """
-
-    sep = " "
 
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         import whisper
@@ -78,17 +80,15 @@ class WhisperTimestampedASR(ASRBase):
 
 
 class TensorRTWhisper(ASRBase):
-    sep = " "
-
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         import whisper_s2t
         self.transcribe_kargs["word_timestamps"] = True
-        self.transcribe_kargs["word_aligner_model"] = os.path.join(model_dir, 'tiny')
+        self.transcribe_kargs["word_aligner_model"] = os.path.join(model_dir, '..', 'tiny')
         # Doesn't work at the moment
         # self.transcribe_kargs["beam_size"] = 5
 
         model = whisper_s2t.load_model(
-            os.path.join(model_dir, "whisper_turbo"),
+            model_dir,
             backend='TensorRT-LLM',
             asr_options=self.transcribe_kargs,
             file_io=False)
@@ -125,7 +125,8 @@ class FasterWhisperASR(ASRBase):
     """Uses faster-whisper library as the backend. Works much faster, appx 4-times (in offline mode). For GPU, it requires installation with a specific CUDNN version.
     """
 
-    sep = ""
+    def sep(self, lang: str):
+        return ""
 
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         from faster_whisper import WhisperModel
@@ -189,8 +190,6 @@ class MLXWhisper(ASRBase):
     Models available: https://huggingface.co/collections/mlx-community/whisper-663256f9964fbb1177db93dc
     Significantly faster than faster-whisper (without CUDA) on Apple M1. 
     """
-
-    sep = " "
 
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         """

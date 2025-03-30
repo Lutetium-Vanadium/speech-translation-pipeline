@@ -3,10 +3,17 @@ from asr import create_tokenizer, VACOnlineASRProcessor, OnlineASRProcessor
 from uart import Screen
 from audio import AudioCapture, output_audio
 from common import measure_latency
+from zhconv import convert
 import os
 
 from mt import Nllb200
 from tts import Tts
+
+def process_transcription_text(text: str, lang: str):
+    if lang == 'zh':
+         text = convert(text, 'zh-hans')
+    return text
+
 
 class CascadePipeline(TranscriptHandler):
     """
@@ -88,7 +95,7 @@ class CascadePipeline(TranscriptHandler):
             if end > self.last_confirmed_transcription_timestamp:
                 break
             i += 1
-        self.unconfirmed_transcription = online.to_flush(buffer[i:])[2]
+        self.unconfirmed_transcription = process_transcription_text(online.to_flush(buffer[i:])[2], src)
         self.screen.send_text(self.unconfirmed_transcription, src_speakerid, is_translation=False, is_confirmed=False)
 
         logger.debug('ASR  CFM: ' + self.confirmed_transcription)
@@ -166,6 +173,7 @@ class CascadePipeline(TranscriptHandler):
     def handle(self, transcript: str, start_timestamp: float, end_timestamp: float, now: float):
         logger.debug('=====================')
         src = self.asr.get_last_language()
+        transcript = process_transcription_text(transcript, src)
             
         try:
             src, src_speakerid, tgt, tgt_speakerid = self.get_speaker_data(src)

@@ -20,7 +20,7 @@ RUN apt-get update && \
 
 
 RUN pip3 install --no-cache-dir evaluate jiwer sacrebleu librosa soundfile uroman \
-            more_itertools pypinyin pyalsaaudio pyserial bert-score
+            more_itertools pypinyin pyalsaaudio pyserial bert-score zhconv
 
 # wtpsplit depends on onnxruntime, but pip cannot detect that it is satisfied by onnxruntime-gpu
 # which is installed. So install all the other required dependencies manually

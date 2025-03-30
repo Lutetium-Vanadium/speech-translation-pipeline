@@ -71,7 +71,7 @@ test_langs = [
     'tl',
 ]
 
-translation_settings = [0, 2]
+translation_settings = [2]
 
 configs = list(product(test_langs, translation_settings))
 
@@ -137,8 +137,8 @@ for lang, translation_setting in configs:
                     for normalizer in get_normalizers(tgt_lang):
                         tgt_txt = normalizer(tgt_txt)
 
-                    for text, lang in pipeline.translation_history:
-                        for n in get_normalizers(lang):
+                    for text, tlang in pipeline.translation_history:
+                        for n in get_normalizers(tlang):
                             text = n(text)
                         translation += text + '\n'
 

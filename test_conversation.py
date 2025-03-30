@@ -53,7 +53,7 @@ def get_normalizers(lang):
     return normalizers
 
 # Define batch size
-batch_size = 32
+batch_size = 25
 
 output_folder = Path(STORAGE_DIR_RESULTS) / 'conversation'
 output_folder.mkdir(exist_ok=True)
@@ -71,7 +71,7 @@ test_langs = [
     'tl',
 ]
 
-translation_settings = [0, 2]
+translation_settings = [2]
 
 configs = list(product(test_langs, translation_settings))
 
@@ -111,7 +111,7 @@ for lang, translation_setting  in configs:
         # Predict for batch
         predictions = []
         for sample in tqdm(batch, leave=False):
-            args.file = path.join(STORAGE_DIR_CONVERSATION_DATA, sample[f'{lang}_audio_path'])
+            args.file = path.join(STORAGE_DIR_CONVERSATION_DATA, sample[f'path'])
             runner.init(args)
             
             error = ''
@@ -124,13 +124,13 @@ for lang, translation_setting  in configs:
             truth = ""
             pred = ""
 
-            for text, lang in sample['translation']:
-                for n in get_normalizers(lang):
+            for text, tlang in sample['translation']:
+                for n in get_normalizers(tlang):
                     text = n(text)
                 truth += text + '\n'
 
-            for text, lang in pipeline.translation_history:
-                for n in get_normalizers(lang):
+            for text, tlang in pipeline.translation_history:
+                for n in get_normalizers(tlang):
                     text = n(text)
                 pred += text + '\n'
 
